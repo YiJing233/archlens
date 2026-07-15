@@ -51,6 +51,17 @@ curl -X POST "https://<your-domain>/api/source-intake" \
   --data-binary @/tmp/archlens-source-intake.json
 ```
 
+批量报告可以用仓库内置的顺序 ingest 脚本：
+
+```bash
+npm run source:ingest -- \
+  --input ./research-packs/source-intake \
+  --endpoint https://<your-domain>/api/source-intake \
+  --token "$ARCHLENS_SOURCE_INTAKE_TOKEN"
+```
+
+脚本只提交已经存在的 `source-report.json`，按文件名稳定排序、逐个请求，并输出成功/失败总览；任何失败都会以非零退出码结束，不会把失败报告伪装成已入库。
+
 接口会校验 schema 版本、案例 ID、来源数量、HTTPS、来源状态和策略边界。任何失败来源都会记录为 `needs_review`，不会被静默过滤。
 
 ## 查询记录

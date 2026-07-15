@@ -56,6 +56,8 @@ npm run source:pipeline -- --input ./cases --out ./research-packs/source-intake
 
 Pipeline 按顺序处理目录中的 JSON，给每个案例写入 `source-report.json` 和 `source-notes.md`，并写入总的 `pipeline-report.json`。任何 schema 错误、重复 ID 或来源失败都会保留报告并以非零状态结束，不能静默进入发布环节。
 
+如果部署环境开启了 D1 来源登记，可以用 `npm run source:ingest -- --input ./research-packs/source-intake --endpoint https://<domain>/api/source-intake --token "$ARCHLENS_SOURCE_INTAKE_TOKEN"` 按顺序提交已复核的报告。这个步骤只持久化证据，不自动修改案例库，也不会触发隐藏的 AI 生成。
+
 ## Output schema
 
 The case must include `id`, `title`, `architect`, `location`, `year`, `typology`, `projectType`, `principle`, `strategy`, `elements`, `palette`, `sources`, `risks`, and `tags`.
