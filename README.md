@@ -22,11 +22,13 @@ npm run dev
 
 ## MCP
 
-把 `https://<your-domain>/api/mcp` 配置到支持 Streamable HTTP MCP 的 Agent 中即可。当前服务版本为 `0.2.0`、契约版本为 `1.0.0`，工具 schema、curl 和客户端连接说明见 [`mcp/README.md`](mcp/README.md)。Demo 不绑定任何模型供应商，返回的结构化案例上下文交给用户自己的 AI 工具继续处理。
+把 `https://archlens.yiking233.chatgpt.site/api/mcp` 配置到支持 Streamable HTTP MCP 的 Agent 中即可。当前服务版本为 `0.2.0`、契约版本为 `1.0.0`，工具 schema、curl 和客户端连接说明见 [`mcp/README.md`](mcp/README.md)。Demo 不绑定任何模型供应商，返回的结构化案例上下文交给用户自己的 AI 工具继续处理。
 
 ## 案例生产
 
 可复用的案例生产 Skill 在 [`skills/case-production/SKILL.md`](skills/case-production/SKILL.md)，规定了来源采集、结构化、设计理念提取、引用核验和资料包输出流程。
+
+贡献者可以复制 [`skills/case-production/case.template.json`](skills/case-production/case.template.json)，再运行 `npm run case:pack -- --input <case.json> --out <目录>`，零依赖生成 `case.json`、研究 Markdown 和 README 三件套。
 
 ## 项目文档
 

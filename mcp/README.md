@@ -11,6 +11,12 @@ ArchLens exposes a real no-auth Streamable HTTP MCP-compatible endpoint at `/api
 https://<your-domain>/api/mcp
 ```
 
+当前公开 Demo Endpoint：
+
+```text
+https://archlens.yiking233.chatgpt.site/api/mcp
+```
+
 Endpoint 支持 `initialize`、`tools/list`、`tools/call` 和 `resources/list`，与网站使用同一份精选案例数据。不绑定模型供应商，客户端可以把返回的结构化上下文交给自己的 Agent 或模型。
 
 ## 快速验证
@@ -58,7 +64,19 @@ ARCHLENS_MCP_ENDPOINT="https://<your-domain>/api/mcp" npm run mcp:smoke
 }
 ```
 
+上面的配置可用于支持远程 HTTP MCP 的 Claude、Cursor 或其他客户端；无需追加 Sites 绕过令牌。
+
 不同客户端的配置入口和字段名可能不同，请以客户端当前文档为准；核心连接信息只有 Endpoint URL。
+
+## 从案例 JSON 生产资料包
+
+案例贡献者可以先复制 [`skills/case-production/case.template.json`](../skills/case-production/case.template.json)，完成来源和编辑字段，再使用仓库内置的零依赖脚本：
+
+```bash
+npm run case:pack -- --input ./case.json --out ./research-packs/my-case
+```
+
+脚本会拒绝缺少来源、许可、风险或结构化字段的输入，并生成可下载、可审阅、可继续被 Agent 读取的三件套。网站和 MCP 运行时仍使用 `lib/data.ts`，合并前应把通过校验的字段同步到案例库。
 
 ## Tools
 

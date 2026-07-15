@@ -30,10 +30,13 @@ for (const name of expectedTools) if (!actualTools.includes(name)) throw new Err
 const search = await rpc("tools/call", { name: "search_cases", arguments: { query: "公共性" } });
 if (!search.structuredContent.some((item) => item.id === "rolex-learning-centre")) throw new Error("语义检索未返回 Rolex Learning Center");
 
+const landscape = await rpc("tools/call", { name: "search_cases", arguments: { projectType: "景观" } });
+if (!landscape.structuredContent.some((item) => item.id === "superkilen")) throw new Error("类型检索未返回 Superkilen");
+
 const item = await rpc("tools/call", { name: "get_case", arguments: { case_id: "heydar-aliyev-centre" } });
 if (!item.structuredContent?.imageCredit?.license || !item.structuredContent?.sources?.length) throw new Error("get_case 缺少来源或图像许可");
 
 const pack = await rpc("tools/call", { name: "build_research_pack", arguments: { case_id: "heydar-aliyev-centre" } });
 if (!pack.structuredContent?.markdown?.includes("原始来源") || !pack.structuredContent?.readme?.includes("ArchLens Research Pack")) throw new Error("research pack 内容不完整");
 
-console.log(JSON.stringify({ endpoint, protocolVersion: initialize.protocolVersion, toolCount: actualTools.length, semanticSearchMatches: search.structuredContent.length, checkedCase: item.structuredContent.id, researchPack: "ok" }, null, 2));
+console.log(JSON.stringify({ endpoint, protocolVersion: initialize.protocolVersion, toolCount: actualTools.length, semanticSearchMatches: search.structuredContent.length, landscapeMatches: landscape.structuredContent.length, checkedCase: item.structuredContent.id, researchPack: "ok" }, null, 2));
