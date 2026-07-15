@@ -2,6 +2,14 @@
 
 本文件记录可验证的发布点。回滚时应选择已保存且经过验证的 Sites 版本，不要直接用未验证的本地构建覆盖线上版本。
 
+## 2026-07-15 · Portable workspace release 39
+
+- Git commit：`019a6f7a3c41ed3183c9e440db2971a2b76e7933`
+- Sites：版本 39，生产地址 <https://archlens.yiking233.chatgpt.site>
+- 新增：工作区 JSON 快照导出/导入，包含收藏、评分、最近研究任务和数据集版本；导入会校验 schema，并忽略当前数据集不存在的案例。
+- 边界：快照只在浏览器和用户自己的文件之间流转，不上传、不写入 D1、不改变案例库；后续团队空间可以在此 schema 上增加权限层。
+- 验证：本地构建、dataset audit、30 个 JavaScript 测试和 7 个 TypeScript 测试通过；`/boards` 服务端渲染、GitHub CI 和生产部署通过。
+
 ## 2026-07-15 · User-owned workflow templates release 37
 
 - Git commit：`ead3e03b950ccb622de1317b8f40baf2dc404a26`
