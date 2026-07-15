@@ -22,3 +22,17 @@
 
 - Dataset 仍是仓库内的精选种子数据，版本号需要随内容提交显式更新。
 - MCP 仍是无鉴权 Demo；持久化限流、审计存储和团队权限属于生产化阶段。
+
+## 2026-07-15 · Demo release 13
+
+- Git commit：`cef72cbc33d9dd58fed50907c33f5fd70b0a863a`
+- Sites：版本 13，生产地址 <https://archlens.yiking233.chatgpt.site>
+- Dataset：`2026-07-15.1`，12 个精选案例
+- 新增：`/api/health`、数据集 manifest、发布回滚记录、标准 `notifications/initialized` 验证
+- 生产验证：无令牌 `npm run mcp:smoke` 成功；健康检查、景观检索和资料包路径均通过
+
+## 当前回滚路径
+
+1. 回滚前先确认 Sites 版本和 commit SHA 一致。
+2. 当前稳定回滚目标为版本 12（commit `60810110b5c8bfded8cd507ecb3d8d1990983b61`）。
+3. 回滚后重新执行 `/api/health` 和 `npm run mcp:smoke`。
