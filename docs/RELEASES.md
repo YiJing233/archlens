@@ -2,6 +2,14 @@
 
 本文件记录可验证的发布点。回滚时应选择已保存且经过验证的 Sites 版本，不要直接用未验证的本地构建覆盖线上版本。
 
+## 2026-07-15 · Workspace token expiry release 47
+
+- Git commit：`6d4cb4fa7024c75a5a9a061b9717970b3771b354`
+- Sites：版本 47，生产地址 <https://archlens.yiking233.chatgpt.site>
+- 新增：`workspace_members.expires_at` 和成员 token 生命周期校验；默认 30 天，可按邀请设置 1–365 天。
+- 边界：过期 token 与已撤销 token 一样不能读取或更新共享空间；公开 Demo 仍默认关闭共享工作区。
+- 验证：本地构建、dataset audit、35 个 JavaScript 测试和 10 个 TypeScript 测试通过；lint 无错误；迁移生成成功并完成 Sites 部署。
+
 ## 2026-07-15 · Workspace member roles release 45
 
 - Git commit：`172d72dd46ccb10e2c248f1870f000a39f75620a`
@@ -130,7 +138,7 @@
 ## 当前限制
 
 - Dataset 仍是仓库内的精选种子数据；版本变更现在由逐案例基线审核门禁约束。
-- MCP 公开 Demo 默认无鉴权；成员角色和审计存储已进入可选 D1 能力，token 过期、邀请链接、更细粒度配额和自动入库仍属于后续生产化阶段。
+- MCP 公开 Demo 默认无鉴权；成员角色、审计存储和 token 过期已进入可选 D1 能力，邀请链接、更细粒度配额和自动入库仍属于后续生产化阶段。
 
 ## 2026-07-15 · Optional runtime security capability
 
