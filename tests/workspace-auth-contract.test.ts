@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canManageWorkspace, canWriteWorkspace, generateWorkspaceToken, hashWorkspaceToken, isWorkspaceRole } from "../lib/workspace-auth.ts";
+import { canManageWorkspace, canWriteWorkspace, generateWorkspaceToken, hashWorkspaceToken, isWorkspaceRole, workspaceTokenExpiry } from "../lib/workspace-auth.ts";
 
 test("workspace roles have explicit read/write/management boundaries", () => {
   assert.equal(canManageWorkspace("owner"), true);
@@ -17,4 +17,12 @@ test("member token is high-entropy and stored as a deterministic hash", async ()
   assert.notEqual(token, generateWorkspaceToken());
   assert.equal(await hashWorkspaceToken(token), await hashWorkspaceToken(token));
   assert.notEqual(await hashWorkspaceToken(token), token);
+});
+
+test("member token expiry defaults to 30 days and is bounded", () => {
+  const now = Date.parse("2026-07-15T00:00:00.000Z");
+  assert.equal(workspaceTokenExpiry(undefined, now), "2026-08-14T00:00:00.000Z");
+  assert.equal(workspaceTokenExpiry(1, now), "2026-07-16T00:00:00.000Z");
+  assert.throws(() => workspaceTokenExpiry(0, now), /1 到 365/);
+  assert.throws(() => workspaceTokenExpiry(366, now), /1 到 365/);
 });

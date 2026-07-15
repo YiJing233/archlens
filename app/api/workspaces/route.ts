@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { workspaceAuditEvents, workspaceMembers, workspaceSpaces } from "@/db/schema";
 import { canWriteWorkspace, hashWorkspaceToken, type WorkspaceRole } from "@/lib/workspace-auth";
@@ -41,7 +41,8 @@ async function resolveAccess(db: WorkspaceDatabase, request: Request, spaceId: s
   const token = bearerToken(request);
   if (!token) return null;
   const tokenHash = await hashWorkspaceToken(token);
-  const rows = await db.select().from(workspaceMembers).where(and(eq(workspaceMembers.spaceId, spaceId), eq(workspaceMembers.tokenHash, tokenHash), isNull(workspaceMembers.revokedAt))).limit(1);
+  const now = new Date().toISOString();
+  const rows = await db.select().from(workspaceMembers).where(and(eq(workspaceMembers.spaceId, spaceId), eq(workspaceMembers.tokenHash, tokenHash), isNull(workspaceMembers.revokedAt), or(isNull(workspaceMembers.expiresAt), gt(workspaceMembers.expiresAt, now)))).limit(1);
   const member = rows[0];
   return member ? { role: member.role as WorkspaceRole, actor: member.memberId, memberId: member.memberId } : null;
 }

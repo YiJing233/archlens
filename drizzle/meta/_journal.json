@@ -36,6 +36,13 @@
       "when": 1784115571723,
       "tag": "0004_silky_loki",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1784116535218,
+      "tag": "0005_right_forge",
+      "breakpoints": true
     }
   ]
 }

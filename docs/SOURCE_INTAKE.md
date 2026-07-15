@@ -141,7 +141,7 @@ curl -X POST "https://<your-domain>/api/workspaces" \
 curl -X POST "https://<your-domain>/api/workspaces/members" \
   -H "Authorization: Bearer $ARCHLENS_WORKSPACE_TOKEN" \
   -H 'content-type: application/json' \
-  --data '{"spaceId":"studio-research","memberId":"designer-a","label":"Designer A","role":"editor"}'
+  --data '{"spaceId":"studio-research","memberId":"designer-a","label":"Designer A","role":"editor","expiresInDays":30}'
 
 curl -H "Authorization: Bearer $ARCHLENS_WORKSPACE_TOKEN" \
   "https://<your-domain>/api/workspaces/members?space_id=studio-research"
@@ -150,4 +150,4 @@ curl -X DELETE "https://<your-domain>/api/workspaces/members?space_id=studio-res
   -H "Authorization: Bearer $ARCHLENS_WORKSPACE_TOKEN"
 ```
 
-`viewer` 只能读取指定空间，`editor` 可以更新快照，operator/owner 才能创建空间、邀请和撤销成员。成员 token 只保存 SHA-256 hash；成员邀请和撤销会写入 `workspace_audit_events`。当前不支持 token 过期、邀请链接和多 operator。
+`viewer` 只能读取指定空间，`editor` 可以更新快照，operator/owner 才能创建空间、邀请和撤销成员。成员 token 只保存 SHA-256 hash，默认 30 天过期，可通过 `expiresInDays` 设置为 1–365 天；成员邀请和撤销会写入 `workspace_audit_events`。当前不支持邀请链接和多 operator。

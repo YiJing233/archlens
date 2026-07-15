@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { workspaceAuditEvents, workspaceMembers, workspaceSpaces } from "@/db/schema";
-import { generateWorkspaceToken, hashWorkspaceToken, isWorkspaceRole, type WorkspaceRole } from "@/lib/workspace-auth";
+import { generateWorkspaceToken, hashWorkspaceToken, isWorkspaceRole, workspaceTokenExpiry, type WorkspaceRole } from "@/lib/workspace-auth";
 import { getMcpRuntimeConfig, hasValidWorkspaceAuthorization } from "@/lib/runtime-config";
 
 const jsonHeaders = { "Cache-Control": "no-store" };
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   try {
     const spaceId = id(new URL(request.url).searchParams.get("space_id"), "space_id");
     const db = await getDb();
-    const members = await db.select({ memberId: workspaceMembers.memberId, label: workspaceMembers.label, role: workspaceMembers.role, createdAt: workspaceMembers.createdAt, revokedAt: workspaceMembers.revokedAt }).from(workspaceMembers).where(eq(workspaceMembers.spaceId, spaceId)).orderBy(desc(workspaceMembers.createdAt));
+    const members = await db.select({ memberId: workspaceMembers.memberId, label: workspaceMembers.label, role: workspaceMembers.role, createdAt: workspaceMembers.createdAt, expiresAt: workspaceMembers.expiresAt, revokedAt: workspaceMembers.revokedAt }).from(workspaceMembers).where(eq(workspaceMembers.spaceId, spaceId)).orderBy(desc(workspaceMembers.createdAt));
     const audits = await db.select().from(workspaceAuditEvents).where(eq(workspaceAuditEvents.spaceId, spaceId)).orderBy(desc(workspaceAuditEvents.createdAt)).limit(100);
     return Response.json({ members, auditEvents: audits }, { headers: jsonHeaders });
   } catch (error) {
@@ -63,10 +63,11 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return Response.json({ error: "请求体必须是 JSON" }, { status: 400, headers: jsonHeaders }); }
   try {
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("请求体必须是对象");
-    const input = body as { spaceId?: unknown; memberId?: unknown; label?: unknown; role?: unknown };
+    const input = body as { spaceId?: unknown; memberId?: unknown; label?: unknown; role?: unknown; expiresInDays?: unknown };
     const spaceId = id(input.spaceId, "spaceId");
     const memberId = id(input.memberId, "memberId");
     const memberLabel = label(input.label);
+    const expiresAt = workspaceTokenExpiry(input.expiresInDays);
     if (!isWorkspaceRole(input.role) || input.role === "owner") throw new Error("role 只能是 editor 或 viewer");
     const role = input.role as Exclude<WorkspaceRole, "owner">;
     const db = await getDb();
@@ -75,10 +76,10 @@ export async function POST(request: Request) {
     const tokenHash = await hashWorkspaceToken(token);
     const now = new Date().toISOString();
     await db.batch([
-      db.insert(workspaceMembers).values({ id: `${spaceId}:${memberId}`, spaceId, memberId, label: memberLabel, role, tokenHash, createdAt: now, revokedAt: null }),
-      db.insert(workspaceAuditEvents).values({ id: crypto.randomUUID(), spaceId, memberId, actor: "operator", action: "member.invited", detailJson: JSON.stringify({ role, label: memberLabel }), createdAt: now }),
+      db.insert(workspaceMembers).values({ id: `${spaceId}:${memberId}`, spaceId, memberId, label: memberLabel, role, tokenHash, createdAt: now, expiresAt, revokedAt: null }),
+      db.insert(workspaceAuditEvents).values({ id: crypto.randomUUID(), spaceId, memberId, actor: "operator", action: "member.invited", detailJson: JSON.stringify({ role, label: memberLabel, expiresAt }), createdAt: now }),
     ]);
-    return Response.json({ member: { spaceId, memberId, label: memberLabel, role, createdAt: now, revokedAt: null }, token, warning: "token 只返回这一次，请立即交给成员并安全保存" }, { status: 201, headers: jsonHeaders });
+    return Response.json({ member: { spaceId, memberId, label: memberLabel, role, createdAt: now, expiresAt, revokedAt: null }, token, warning: "token 只返回这一次，请立即交给成员并安全保存" }, { status: 201, headers: jsonHeaders });
   } catch (error) {
     const message = error instanceof Error ? error.message : "成员邀请失败";
     const status = message.includes("UNIQUE") || message.includes("unique") ? 409 : message.includes("必须") || message.includes("只能") || message.includes("超过") || message.includes("对象") ? 422 : 503;

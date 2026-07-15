@@ -76,6 +76,7 @@ export const workspaceMembers = sqliteTable(
     role: text("role", { enum: ["owner", "editor", "viewer"] }).notNull(),
     tokenHash: text("token_hash").notNull(),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    expiresAt: text("expires_at"),
     revokedAt: text("revoked_at"),
   },
   (table) => [

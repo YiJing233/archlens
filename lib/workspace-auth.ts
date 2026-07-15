@@ -1,5 +1,6 @@
 export const WORKSPACE_ROLES = ["owner", "editor", "viewer"] as const;
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
+export const DEFAULT_WORKSPACE_TOKEN_TTL_DAYS = 30;
 
 export function isWorkspaceRole(value: unknown): value is WorkspaceRole {
   return typeof value === "string" && (WORKSPACE_ROLES as readonly string[]).includes(value);
@@ -11,6 +12,11 @@ export function canWriteWorkspace(role: WorkspaceRole) {
 
 export function canManageWorkspace(role: WorkspaceRole) {
   return role === "owner";
+}
+
+export function workspaceTokenExpiry(value: unknown = DEFAULT_WORKSPACE_TOKEN_TTL_DAYS, now = Date.now()) {
+  if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 365) throw new Error("expiresInDays 必须是 1 到 365 之间的整数");
+  return new Date(now + (value as number) * 24 * 60 * 60 * 1000).toISOString();
 }
 
 function bytesToBase64Url(bytes: Uint8Array) {
