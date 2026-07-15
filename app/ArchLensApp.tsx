@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { cases, findCase, mcpTools, taskTemplates, type CaseStudy } from "@/lib/data";
 import { codeMap, milestones, projectExpectations, projectPrinciples, projectTracks } from "@/lib/project";
 import { buildResearchPack } from "@/lib/research-pack";
+import { buildWorkspaceSnapshot, parseWorkspaceSnapshot, type LastResearch } from "@/lib/workspace";
 
 type View = "home" | "cases" | "boards" | "project" | "mcp";
 type Props = { initialView?: View };
@@ -34,6 +35,7 @@ export default function ArchLensApp({ initialView = "home" }: Props) {
   const [researchPrompt, setResearchPrompt] = useState(taskTemplates[0].prompt);
   const [saved, setSaved] = useState<string[]>([]);
   const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [lastResearch, setLastResearch] = useState<LastResearch | null>(null);
   const [toast, setToast] = useState("");
   const [wishList, setWishList] = useState("");
   const [wishSent, setWishSent] = useState(false);
@@ -41,12 +43,15 @@ export default function ArchLensApp({ initialView = "home" }: Props) {
   const [mcpInput, setMcpInput] = useState('{"query":"公共性"}');
   const [mcpOutput, setMcpOutput] = useState("选择一个工具并执行真实 MCP 调用。\n\nEndpoint: /api/mcp");
   const [mcpBusy, setMcpBusy] = useState(false);
+  const workspaceFileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
         setSaved(JSON.parse(localStorage.getItem("archlens-saved") ?? "[]") as string[]);
         setRatings(JSON.parse(localStorage.getItem("archlens-ratings") ?? "{}") as Record<string, number>);
+        const storedResearch = JSON.parse(localStorage.getItem("archlens-last-research") ?? "null") as LastResearch | null;
+        if (storedResearch && typeof storedResearch.template === "string" && typeof storedResearch.prompt === "string" && typeof storedResearch.createdAt === "string") setLastResearch(storedResearch);
       } catch {
         setToast("本地工作区读取失败，已使用空白工作区");
       }
@@ -94,9 +99,43 @@ export default function ArchLensApp({ initialView = "home" }: Props) {
   };
 
   const prepareResearch = () => {
-    localStorage.setItem("archlens-last-research", JSON.stringify({ template, prompt: researchPrompt, createdAt: new Date().toISOString() }));
+    const nextResearch = { template, prompt: researchPrompt, createdAt: new Date().toISOString() };
+    setLastResearch(nextResearch);
+    localStorage.setItem("archlens-last-research", JSON.stringify(nextResearch));
     setToast("研究任务已准备好，可复制到你的 MCP 客户端");
     navigate("boards", "/boards");
+  };
+
+  const exportWorkspace = () => {
+    try {
+      const snapshot = buildWorkspaceSnapshot(saved, ratings, lastResearch);
+      downloadText(`archlens-workspace-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(snapshot, null, 2), "application/json");
+      setToast("工作区快照已导出，可交给团队或提交到自己的仓库");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "工作区导出失败");
+    }
+  };
+
+  const importWorkspace = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const snapshot = parseWorkspaceSnapshot(await file.text());
+      const availableCaseIds = snapshot.savedCaseIds.filter((id) => Boolean(findCase(id)));
+      const availableRatings = Object.fromEntries(Object.entries(snapshot.ratings).filter(([id]) => Boolean(findCase(id))));
+      setSaved(availableCaseIds);
+      setRatings(availableRatings);
+      setLastResearch(snapshot.lastResearch);
+      localStorage.setItem("archlens-saved", JSON.stringify(availableCaseIds));
+      localStorage.setItem("archlens-ratings", JSON.stringify(availableRatings));
+      if (snapshot.lastResearch) localStorage.setItem("archlens-last-research", JSON.stringify(snapshot.lastResearch));
+      else localStorage.removeItem("archlens-last-research");
+      const ignored = snapshot.savedCaseIds.length - availableCaseIds.length;
+      setToast(ignored ? `工作区已导入，${ignored} 个当前数据集不存在的案例已忽略` : `工作区已导入（数据集 ${snapshot.datasetVersion}）`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "工作区导入失败");
+    }
   };
 
   const submitWishList = () => {
@@ -143,7 +182,7 @@ export default function ArchLensApp({ initialView = "home" }: Props) {
 
   const renderMcp = () => <main className="mcp-page"><div className="mcp-hero"><div><div className="section-kicker">MODEL CONTEXT PROTOCOL / 04</div><h1>把案例带进<br /><em>你的 AI 工具。</em></h1><p>ArchLens 不提供官方 AI 推理。我们把开放案例、原始来源和结构化研究能力，通过真实 MCP Endpoint 交给你的 Agent。</p></div><div className="endpoint-card"><span>LIVE ENDPOINT · NO AUTH</span><code>/api/mcp</code><small>https://archlens.yiking233.chatgpt.site/api/mcp</small></div></div><div className="mcp-layout"><section className="tool-list"><div className="section-kicker">TOOLS / 05</div>{mcpTools.map((tool) => <button className={mcpTool === tool.name ? "tool-item active" : "tool-item"} key={tool.name} onClick={() => { setMcpTool(tool.name); if (tool.name === "get_case") setMcpInput(`{"case_id":"${cases[0].id}"}`); if (tool.name === "extract_design_elements") setMcpInput(`{"case_id":"${cases[0].id}"}`); if (tool.name === "compare_cases") setMcpInput(`{"case_ids":["${cases[0].id}","${cases[3].id}"]}`); if (tool.name === "build_research_pack") setMcpInput(`{"case_id":"${cases[0].id}"}`); if (tool.name === "search_cases") setMcpInput('{"query":"公共性"}'); }}><span className="tool-num">0{mcpTools.indexOf(tool) + 1}</span><span><strong>{tool.label}</strong><small>{tool.description}</small></span><b>↗</b></button>)}</section><section className="playground"><div className="playground-head"><div><div className="section-kicker">MCP PLAYGROUND</div><h2>真实调用，直接看返回值。</h2></div><span className="transport-badge">JSON-RPC / HTTP</span></div><div className="code-panel"><div className="code-top"><span>REQUEST · {mcpTool}</span><span className="live-dot">● live</span></div><textarea className="json-editor" value={mcpInput} onChange={(event) => setMcpInput(event.target.value)} spellCheck={false} aria-label="MCP 参数 JSON" /><button className="primary-button execute-button" onClick={executeMcp} disabled={mcpBusy}>{mcpBusy ? "调用中…" : "执行 MCP 调用 →"}</button></div><div className="code-panel output-panel"><div className="code-top"><span>RESPONSE · STRUCTURED CONTENT</span><button onClick={() => navigator.clipboard?.writeText(mcpOutput)}>复制 JSON</button></div><pre>{mcpOutput}</pre></div></section></div><div className="mcp-footer-note"><span>OPEN SOURCE CONTRACT</span><p>工具 schema、案例生产 Skill 和贡献模板均以 Apache-2.0 发布。外部 Agent 可以直接读取案例，也可以在 GitHub 提交新的研究 Wish List。</p><a href="/api/mcp" target="_blank" rel="noreferrer">查看 Endpoint 状态 ↗</a></div></main>;
 
-  const renderBoards = () => <main className="boards-page"><div className="page-intro"><div><div className="section-kicker">WORKSPACE / 03</div><h1>把发现留下，<em>变成下一步。</em></h1><p>轻量保存案例、记录评分，把研究任务和 Wish List 带进开源协作。</p></div><div className="workspace-count"><strong>{saved.length.toString().padStart(2, "0")}</strong><span>已保存案例</span></div></div><div className="boards-grid"><section className="saved-board"><div className="board-head"><div><span className="section-kicker">SAVED CASES</span><h2>我的研究清单</h2></div><button className="secondary-button" onClick={() => navigate("cases", "/cases")}>+ 添加案例</button></div>{saved.length ? <div className="saved-list">{saved.map((id) => { const item = findCase(id); return item ? <button className="saved-row" key={id} onClick={() => setSelected(item)}><span className="saved-thumb" style={{ background: item.gradient }} /><span className="saved-name"><strong>{item.title}</strong><small>{item.architect} · {item.typology}</small></span><span className="saved-star">{ratings[item.id] ? `★ ${ratings[item.id]}` : "☆"}</span><span>→</span></button> : null; })}</div> : <div className="board-empty"><span>☆</span><strong>工作区还是空的</strong><p>从案例库保存一个项目，再回来组织你的研究线索。</p><button className="primary-button" onClick={() => navigate("cases", "/cases")}>浏览案例库</button></div>}</section><section className="wishlist-card"><div className="section-kicker">OPEN CONTRIBUTION</div><h2>告诉我们下一步<br /><em>应该研究什么。</em></h2><p>Wish List 会以 GitHub Issue 模板进入开源案例生产工作流。你不需要登录 ArchLens。</p><textarea value={wishList} onChange={(event) => setWishList(event.target.value)} placeholder="例如：更多东南亚热带建筑，关注遮阳、自然通风和低技建造。" /><button className="primary-button full" onClick={submitWishList}>提交 Wish List ↗</button>{wishSent && <span className="sent-note">✓ 已打开 GitHub 提交页</span>}</section></div><section className="workflow-strip"><div><span className="section-kicker">CASE PRODUCTION SKILL</span><h2>从原始资料，到可复用的研究包。</h2></div><div className="workflow-steps">{["采集来源", "清洗与结构化", "提取理念 / 元素", "核验与发布"].map((step, index) => <div key={step}><span>0{index + 1}</span><strong>{step}</strong>{index < 3 && <i>→</i>}</div>)}</div></section></main>;
+  const renderBoards = () => <main className="boards-page"><div className="page-intro"><div><div className="section-kicker">WORKSPACE / 03</div><h1>把发现留下，<em>变成下一步。</em></h1><p>轻量保存案例、记录评分，把研究任务和 Wish List 带进开源协作。</p></div><div className="workspace-count"><strong>{saved.length.toString().padStart(2, "0")}</strong><span>已保存案例</span></div></div><div className="boards-grid"><section className="saved-board"><div className="board-head"><div><span className="section-kicker">SAVED CASES</span><h2>我的研究清单</h2></div><button className="secondary-button" onClick={() => navigate("cases", "/cases")}>+ 添加案例</button></div>{saved.length ? <div className="saved-list">{saved.map((id) => { const item = findCase(id); return item ? <button className="saved-row" key={id} onClick={() => setSelected(item)}><span className="saved-thumb" style={{ background: item.gradient }} /><span className="saved-name"><strong>{item.title}</strong><small>{item.architect} · {item.typology}</small></span><span className="saved-star">{ratings[item.id] ? `★ ${ratings[item.id]}` : "☆"}</span><span>→</span></button> : null; })}</div> : <div className="board-empty"><span>☆</span><strong>工作区还是空的</strong><p>从案例库保存一个项目，再回来组织你的研究线索。</p><button className="primary-button" onClick={() => navigate("cases", "/cases")}>浏览案例库</button></div>}</section><section className="wishlist-card"><div className="section-kicker">OPEN CONTRIBUTION</div><h2>告诉我们下一步<br /><em>应该研究什么。</em></h2><p>Wish List 会以 GitHub Issue 模板进入开源案例生产工作流。你不需要登录 ArchLens。</p><textarea value={wishList} onChange={(event) => setWishList(event.target.value)} placeholder="例如：更多东南亚热带建筑，关注遮阳、自然通风和低技建造。" /><button className="primary-button full" onClick={submitWishList}>提交 Wish List ↗</button>{wishSent && <span className="sent-note">✓ 已打开 GitHub 提交页</span>}</section></div><section className="workspace-transfer"><div><div className="section-kicker">PORTABLE WORKSPACE</div><h2>把研究清单带走，<em>再交给下一个人。</em></h2><p>导出收藏、评分和最近研究任务；导入时会校验 schema，并忽略当前数据集不存在的案例。文件不上传到 ArchLens。</p></div><div className="workspace-transfer-actions"><button className="secondary-button" onClick={exportWorkspace}>导出工作区 JSON ↓</button><button className="primary-button" onClick={() => workspaceFileInput.current?.click()}>导入工作区 JSON ↑</button><input ref={workspaceFileInput} className="workspace-file-input" type="file" accept="application/json,.json" onChange={importWorkspace} aria-label="选择工作区 JSON 文件" /></div></section><section className="workflow-strip"><div><span className="section-kicker">CASE PRODUCTION SKILL</span><h2>从原始资料，到可复用的研究包。</h2></div><div className="workflow-steps">{["采集来源", "清洗与结构化", "提取理念 / 元素", "核验与发布"].map((step, index) => <div key={step}><span>0{index + 1}</span><strong>{step}</strong>{index < 3 && <i>→</i>}</div>)}</div></section></main>;
 
   const renderProject = () => <main className="project-page"><section className="project-hero"><div><div className="section-kicker">ABOUT THE PROJECT / 05</div><h1>不是收藏更多，<br /><em>而是理解更深。</em></h1><p>ArchLens / 建筑透镜，是一个开源的建筑与城市设计案例知识入口。我们把项目原始资料、设计判断和可复用工具放在同一条公开链路上。</p></div><div className="project-stamp"><span>OPEN SOURCE</span><strong>2026—</strong><small>CASE / METHOD / CONTEXT</small></div></section><section className="project-manifesto"><div className="section-kicker">OUR PRINCIPLES / 01</div><div className="principle-grid">{projectPrinciples.map((item) => <article className="principle-card" key={item.index}><span>{item.index}</span><h2>{item.title}</h2><p>{item.body}</p><small>{item.action}</small></article>)}</div></section><section className="project-tracks"><div className="project-section-head"><div><div className="section-kicker">OUR TASKS / 02</div><h2>我们现在要把什么做好</h2></div><p>先把资料和研究基础做扎实，再谈更复杂的 AI 能力。</p></div><div className="track-grid">{projectTracks.map((item, index) => <article className="track-card" key={item.title}><span>0{index + 1} / {item.label}</span><h3>{item.title}</h3><p>{item.body}</p></article>)}</div></section><section className="project-expectations"><div className="section-kicker">OUR EXPECTATIONS / 03</div><h2>希望它最终成为谁的基础设施？</h2><div className="expectation-grid">{projectExpectations.map((item) => <article key={item.label}><span>{item.label}</span><p>{item.body}</p></article>)}</div></section><section className="project-code"><div><div className="section-kicker">CODE MAP / 04</div><h2>代码应该让理念可执行。</h2><p>项目把产品界面、案例知识、MCP 领域层和内容生产 Skill 分开，但用同一个 schema 连接起来。</p></div><div className="code-map-grid">{codeMap.map((item) => <div className="code-map-item" key={item.path}><code>{item.path}</code><strong>{item.label}</strong><p>{item.body}</p></div>)}</div></section><section className="milestone-section"><div className="project-section-head"><div><div className="section-kicker">MILESTONES / 05</div><h2>从 Demo 到开放知识基础设施</h2></div><p>每个阶段都有可以被检查的交付物，不用“以后会有”替代真正的进度。</p></div><div className="milestone-list">{milestones.map((item) => <article className={item.status === "当前" ? "milestone-card current" : "milestone-card"} key={item.phase}><div className="milestone-top"><span>{item.phase}</span><b>{item.status}</b></div><h3>{item.title}</h3><p>{item.summary}</p><ul>{item.deliverables.map((deliverable) => <li key={deliverable}>{deliverable}</li>)}</ul></article>)}</div></section></main>;
 

@@ -40,6 +40,15 @@ test("server-renders the MCP page", async () => {
   assert.match(html, /search_cases/);
 });
 
+test("server-renders portable workspace controls", async () => {
+  const response = await render("/boards");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /PORTABLE WORKSPACE/);
+  assert.match(html, /导出工作区 JSON/);
+  assert.match(html, /导入工作区 JSON/);
+});
+
 test("server-renders the project narrative page", async () => {
   const response = await render("/project");
   assert.equal(response.status, 200);

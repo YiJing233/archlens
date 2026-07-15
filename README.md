@@ -22,6 +22,8 @@ npm run dev
 - `/api/health`：协议、数据集版本和案例库就绪状态
 - `/api/source-intake`：可选的 D1 来源证据登记与复查接口（公开 Demo 默认关闭写入）
 
+工作区支持从页面导出/导入 `workspace snapshot` JSON，便于通过文件或 GitHub 交接收藏、评分和最近研究任务；快照只在浏览器和用户自己的文件之间流转，不上传到 ArchLens。
+
 ## MCP
 
 把 `https://archlens.yiking233.chatgpt.site/api/mcp` 配置到支持 Streamable HTTP MCP 的 Agent 中即可。当前服务版本为 `0.2.0`、契约版本为 `1.0.0`，工具 schema、curl 和客户端连接说明见 [`mcp/README.md`](mcp/README.md)。Demo 不绑定任何模型供应商，返回的结构化案例上下文交给用户自己的 AI 工具继续处理。
