@@ -2,6 +2,14 @@
 
 本文件记录可验证的发布点。回滚时应选择已保存且经过验证的 Sites 版本，不要直接用未验证的本地构建覆盖线上版本。
 
+## 2026-07-15 · Scheduled source intake release 52
+
+- Git commit：`30bb718e889512eef9401efa33f9ceb40f1ff388`
+- Sites：版本 52，生产地址 <https://archlens.yiking233.chatgpt.site>
+- 新增：来源 workflow 每周一自动检查输入目录；有输入时运行抓取、解析和人工发布候选，没有输入时安全跳过；手动触发行为保持不变。
+- 边界：定时任务只生成证据和 proposal，不自动登记 D1、不修改 `lib/data.ts`、不自动发布数据集。
+- 验证：构建、dataset audit、35 个 JavaScript 测试和 10 个 TypeScript 测试、GitHub CI 和 Sites 部署通过。
+
 ## 2026-07-15 · Source intake automation release 50
 
 - Git commit：`1355352ae49261d58f1c65d8a0c6672f2eba574a`
