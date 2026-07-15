@@ -1,18 +1,19 @@
 import { getDatasetManifest } from "@/lib/dataset";
 import { callMcpTool, MCP_PROTOCOL_VERSION, MCP_SCHEMA_VERSION, MCP_SERVER_VERSION, McpToolError, mcpToolDefinitions } from "@/lib/mcp";
+import { getMcpRuntimeConfig, hasValidMcpAuthorization } from "@/lib/runtime-config";
 
 const baseHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type, x-request-id, mcp-session-id, mcp-protocol-version",
+  "Access-Control-Allow-Headers": "authorization, content-type, x-request-id, mcp-session-id, mcp-protocol-version",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Expose-Headers": "MCP-Protocol-Version, MCP-Server-Version, MCP-Schema-Version, X-Request-ID, X-Response-Time-Ms, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
+  "Access-Control-Expose-Headers": "MCP-Protocol-Version, MCP-Server-Version, MCP-Schema-Version, WWW-Authenticate, X-Request-ID, X-Response-Time-Ms, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
   "Content-Type": "application/json",
   "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
   "MCP-Server-Version": MCP_SERVER_VERSION,
   "MCP-Schema-Version": MCP_SCHEMA_VERSION,
 };
 
-const rateLimit = { limit: 60, windowMs: 60_000 };
+const rateLimitWindowMs = 60_000;
 const buckets = new Map<string, { startedAt: number; count: number }>();
 
 function requestId(request: Request) {
@@ -23,17 +24,17 @@ function clientKey(request: Request) {
   return request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
 }
 
-function consumeRateLimit(request: Request) {
+function consumeRateLimit(request: Request, limit: number) {
   const now = Date.now();
   const key = clientKey(request);
   const current = buckets.get(key);
-  const bucket = !current || now - current.startedAt >= rateLimit.windowMs ? { startedAt: now, count: 0 } : current;
+  const bucket = !current || now - current.startedAt >= rateLimitWindowMs ? { startedAt: now, count: 0 } : current;
   bucket.count += 1;
   buckets.set(key, bucket);
   if (buckets.size > 1000) {
-    for (const [bucketKey, value] of buckets) if (now - value.startedAt >= rateLimit.windowMs) buckets.delete(bucketKey);
+    for (const [bucketKey, value] of buckets) if (now - value.startedAt >= rateLimitWindowMs) buckets.delete(bucketKey);
   }
-  return { allowed: bucket.count <= rateLimit.limit, remaining: Math.max(0, rateLimit.limit - bucket.count), resetAt: bucket.startedAt + rateLimit.windowMs };
+  return { allowed: bucket.count <= limit, limit, remaining: Math.max(0, limit - bucket.count), resetAt: bucket.startedAt + rateLimitWindowMs };
 }
 
 function response(body: unknown, requestIdValue: string, status = 200, rate?: ReturnType<typeof consumeRateLimit>, startedAt = Date.now()) {
@@ -41,7 +42,7 @@ function response(body: unknown, requestIdValue: string, status = 200, rate?: Re
   headers.set("X-Request-ID", requestIdValue);
   headers.set("X-Response-Time-Ms", String(Date.now() - startedAt));
   if (rate) {
-    headers.set("X-RateLimit-Limit", String(rateLimit.limit));
+    headers.set("X-RateLimit-Limit", String(rate.limit));
     headers.set("X-RateLimit-Remaining", String(rate.remaining));
     headers.set("X-RateLimit-Reset", String(Math.ceil(rate.resetAt / 1000)));
   }
@@ -50,6 +51,12 @@ function response(body: unknown, requestIdValue: string, status = 200, rate?: Re
 
 function rpcError(id: string | number | null, code: number, message: string, requestIdValue: string, rate: ReturnType<typeof consumeRateLimit>, startedAt: number, data?: unknown, status = 400) {
   return response({ jsonrpc: "2.0", id, error: { code, message, ...(data === undefined ? {} : { data }) } }, requestIdValue, status, rate, startedAt);
+}
+
+function unauthorized(requestIdValue: string, rate: ReturnType<typeof consumeRateLimit>, startedAt: number) {
+  const result = rpcError(null, -32001, "需要有效的 Bearer token", requestIdValue, rate, startedAt, { auth: "bearer" }, 401);
+  result.headers.set("WWW-Authenticate", "Bearer");
+  return result;
 }
 
 type JsonRpcMessage = { id?: string | number; method?: string; params?: Record<string, unknown> };
@@ -76,18 +83,28 @@ export async function OPTIONS(request: Request) {
 export async function GET(request: Request) {
   const startedAt = Date.now();
   const id = requestId(request);
-  const rate = consumeRateLimit(request);
+  const config = getMcpRuntimeConfig();
+  const rate = consumeRateLimit(request, config.rateLimitPerMinute);
   if (!rate.allowed) return rpcError(null, -32029, "请求过于频繁，请稍后重试", id, rate, startedAt, { retryAfterSeconds: Math.ceil((rate.resetAt - Date.now()) / 1000) }, 429);
+  if (!hasValidMcpAuthorization(request, config)) {
+    logRequest(id, "GET", startedAt, "unauthorized");
+    return unauthorized(id, rate, startedAt);
+  }
   logRequest(id, "GET", startedAt, "ok");
-  return response({ name: "archlens", version: MCP_SERVER_VERSION, schemaVersion: MCP_SCHEMA_VERSION, protocol: MCP_PROTOCOL_VERSION, transport: "streamable-http", auth: "none", dataset: getDatasetManifest(), tools: mcpToolDefinitions.map((tool) => tool.name), endpoint: "/api/mcp" }, id, 200, rate, startedAt);
+  return response({ name: "archlens", version: MCP_SERVER_VERSION, schemaVersion: MCP_SCHEMA_VERSION, protocol: MCP_PROTOCOL_VERSION, transport: "streamable-http", auth: config.authEnabled ? "bearer" : "none", rateLimitPerMinute: config.rateLimitPerMinute, dataset: getDatasetManifest(), tools: mcpToolDefinitions.map((tool) => tool.name), endpoint: "/api/mcp" }, id, 200, rate, startedAt);
 }
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
   const id = requestId(request);
-  const rate = consumeRateLimit(request);
+  const config = getMcpRuntimeConfig();
+  const rate = consumeRateLimit(request, config.rateLimitPerMinute);
   let method = "parse";
   if (!rate.allowed) return rpcError(null, -32029, "请求过于频繁，请稍后重试", id, rate, startedAt, { retryAfterSeconds: Math.ceil((rate.resetAt - Date.now()) / 1000) }, 429);
+  if (!hasValidMcpAuthorization(request, config)) {
+    logRequest(id, method, startedAt, "unauthorized");
+    return unauthorized(id, rate, startedAt);
+  }
   try {
     let rawMessage: unknown;
     try {

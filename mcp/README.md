@@ -101,3 +101,14 @@ npm run case:pack -- --input ./case.json --out ./research-packs/my-case
 - Demo 对单个客户端标识做进程内 60 次/分钟的尽力限流，并通过 `X-RateLimit-*` 响应头暴露状态。无鉴权和无持久化限流不适合生产环境。
 
 Authentication is intentionally omitted in the demo. Production use still requires API key validation, durable rate limiting, audit logs, and a deployment-level timeout around external data sources.
+
+## 可选生产配置
+
+Demo 不设置以下变量，因此当前 Endpoint 保持公开。部署到自己的环境时，可以通过运行时环境变量启用 Bearer 鉴权和调整进程内限流：
+
+```text
+ARCHLENS_MCP_TOKEN=<strong-random-token>
+ARCHLENS_MCP_RATE_LIMIT_PER_MINUTE=120
+```
+
+启用后，`/api/mcp` 要求 `Authorization: Bearer <token>`；`/api/health` 会只报告 `auth: "bearer"`，不会泄露 token。当前限流仍是单实例尽力实现，跨实例部署应替换为持久化配额服务。

@@ -1,15 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-async function render(path = "/", init = {}) {
+async function loadWorker() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
+  return worker;
+}
+
+async function renderWithWorker(worker, path = "/", init = {}) {
   return worker.fetch(
     new Request(`http://localhost${path}`, { headers: { accept: "text/html" }, ...init }),
     { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
     { waitUntil() {}, passThroughOnException() {} },
   );
+}
+
+async function render(path = "/", init = {}) {
+  return renderWithWorker(await loadWorker(), path, init);
 }
 
 test("server-renders the ArchLens research entry", async () => {
@@ -49,6 +57,8 @@ test("MCP endpoint returns tool definitions and case data", async () => {
   assert.equal(body.name, "archlens");
   assert.equal(body.version, "0.2.0");
   assert.equal(body.schemaVersion, "1.0.0");
+  assert.equal(body.auth, "none");
+  assert.equal(body.rateLimitPerMinute, 60);
   assert.equal(body.dataset.caseCount, 12);
   assert.equal(body.dataset.version, "2026-07-15.1");
   assert.match(body.endpoint, /\/api\/mcp/);
@@ -64,6 +74,41 @@ test("health endpoint exposes dataset and protocol readiness", async () => {
   assert.equal(body.dataset.caseCount, 12);
   assert.equal(body.dataset.kind, "curated-seed");
   assert.equal(body.checks.caseLibrary, "ok");
+  assert.equal(body.mcp.auth, "none");
+});
+
+test("MCP bearer auth is opt-in and preserves the public demo by default", async () => {
+  const previousToken = process.env.ARCHLENS_MCP_TOKEN;
+  try {
+    process.env.ARCHLENS_MCP_TOKEN = "test-token";
+    const unauthorizedResponse = await render("/api/mcp");
+    assert.equal(unauthorizedResponse.status, 401);
+    assert.match(unauthorizedResponse.headers.get("www-authenticate") ?? "", /Bearer/);
+
+    const authorizedResponse = await render("/api/mcp", { headers: { authorization: "Bearer test-token" } });
+    assert.equal(authorizedResponse.status, 200);
+    assert.equal((await authorizedResponse.json()).auth, "bearer");
+  } finally {
+    if (previousToken === undefined) delete process.env.ARCHLENS_MCP_TOKEN;
+    else process.env.ARCHLENS_MCP_TOKEN = previousToken;
+  }
+});
+
+test("MCP rate limit can be configured without changing the handler", async () => {
+  const previousLimit = process.env.ARCHLENS_MCP_RATE_LIMIT_PER_MINUTE;
+  const clientIp = `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
+  try {
+    delete process.env.ARCHLENS_MCP_TOKEN;
+    process.env.ARCHLENS_MCP_RATE_LIMIT_PER_MINUTE = "2";
+    const headers = { "x-forwarded-for": clientIp };
+    const worker = await loadWorker();
+    assert.equal((await renderWithWorker(worker, "/api/mcp", { headers })).status, 200);
+    assert.equal((await renderWithWorker(worker, "/api/mcp", { headers })).status, 200);
+    assert.equal((await renderWithWorker(worker, "/api/mcp", { headers })).status, 429);
+  } finally {
+    if (previousLimit === undefined) delete process.env.ARCHLENS_MCP_RATE_LIMIT_PER_MINUTE;
+    else process.env.ARCHLENS_MCP_RATE_LIMIT_PER_MINUTE = previousLimit;
+  }
 });
 
 test("MCP case tools expose the same research-pack fields", async () => {
