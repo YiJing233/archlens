@@ -2,6 +2,15 @@
 
 本文件记录可验证的发布点。回滚时应选择已保存且经过验证的 Sites 版本，不要直接用未验证的本地构建覆盖线上版本。
 
+## 2026-07-15 · Opt-in shared workspace release 43
+
+- Git commit：`9298bc00494ad0911bbafab69bef31825f432212`
+- Sites：版本 43，生产地址 <https://archlens.yiking233.chatgpt.site>
+- 新增：D1 `workspace_spaces` 表和 `/api/workspaces` 读写接口，支持带数据集版本的共享 workspace snapshot。
+- 安全边界：必须配置独立 `ARCHLENS_WORKSPACE_TOKEN` 才能访问，必须额外开启 `ARCHLENS_WORKSPACE_WRITE_ENABLED=true` 才能写入；公开 Demo 默认返回 404，不接受匿名写入。
+- 当前限制：一个 operator token 保护整个空间，成员级权限、邀请和更细粒度审计尚未实现。
+- 验证：本地构建、dataset audit、34 个 JavaScript 测试和 7 个 TypeScript 测试通过；GitHub CI、生产 health 和公开关闭行为通过。
+
 ## 2026-07-15 · Manual dataset proposal gate release 41
 
 - Git commit：`ebcbaad83e58d7a69c60a8622ce1395e3f34f099`
