@@ -2,6 +2,13 @@
 
 本文件记录可验证的发布点。回滚时应选择已保存且经过验证的 Sites 版本，不要直接用未验证的本地构建覆盖线上版本。
 
+## 2026-07-15 · Pipeline rerun fix release 23
+
+- Git commit：`68540b57abf85f5f338b6a76d551f15de646cc72`
+- Sites：版本 23，生产地址 <https://archlens.yiking233.chatgpt.site>
+- 修复：批量来源 pipeline 默认输出目录位于输入目录时，重复执行不会再次读取历史报告。
+- 验证：本地 21/21 测试、构建和 GitHub CI 通过；线上健康检查与 MCP smoke 保持通过。
+
 ## 2026-07-15 · Batch source pipeline release 21
 
 - Git commit：`cb82d5166ce74700ad3d69190f4e8b565a04180a`
