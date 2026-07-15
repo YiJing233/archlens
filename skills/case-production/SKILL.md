@@ -40,6 +40,14 @@ npm run source:audit -- --input ./case.json --out ./research-packs/<case-id>/sou
 
 这个步骤只使用 Node.js 标准库，按顺序读取 HTTPS 页面，记录状态、标题、描述、canonical 和有上限的短摘录；它不会下载图片、保存整页内容或自动生成事实。随后 `case:pack` 会校验必填字段、HTTPS 来源、图像许可、数组字段和 HEX 颜色，并输出 `case.json`、`research-pack.md`、`README.md` 三件套。来源采集和编辑判断仍由贡献者负责。
 
+批量处理多个 `case.json` 时使用：
+
+```bash
+npm run source:pipeline -- --input ./cases --out ./research-packs/source-intake
+```
+
+Pipeline 按顺序处理目录中的 JSON，给每个案例写入 `source-report.json` 和 `source-notes.md`，并写入总的 `pipeline-report.json`。任何 schema 错误、重复 ID 或来源失败都会保留报告并以非零状态结束，不能静默进入发布环节。
+
 ## Output schema
 
 The case must include `id`, `title`, `architect`, `location`, `year`, `typology`, `projectType`, `principle`, `strategy`, `elements`, `palette`, `sources`, `risks`, and `tags`.

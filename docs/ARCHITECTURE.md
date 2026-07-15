@@ -14,6 +14,7 @@ lib/
   mcp.ts                 MCP 工具定义与领域逻辑
 scripts/
   source-intake.mjs      原始来源状态、元数据和有界摘录
+  source-pipeline.mjs    目录级顺序处理、逐案例报告和总览门禁
   dataset-audit.mjs      逐案例稳定哈希、变更审核和基线检查
 docs/datasets/            可审阅的数据集基线快照
 skills/
@@ -28,6 +29,7 @@ docs/                    项目理念、架构、路线图和协作说明
 公开原始资料
   → 案例生产 Skill
   → source:audit（只记录来源证据，不解释、不下载图片）
+  → source:pipeline（批量来源报告与失败门禁）
   → case.json / Markdown / README
   → lib/data.ts
   → dataset:audit + dataset manifest
