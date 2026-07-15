@@ -2,6 +2,14 @@
 
 本文件记录可验证的发布点。回滚时应选择已保存且经过验证的 Sites 版本，不要直接用未验证的本地构建覆盖线上版本。
 
+## 2026-07-15 · Manual dataset proposal gate release 41
+
+- Git commit：`ebcbaad83e58d7a69c60a8622ce1395e3f34f099`
+- Sites：版本 41，生产地址 <https://archlens.yiking233.chatgpt.site>
+- 新增：`source:proposal`，把来源报告转换为人工审阅的 dataset change proposal；失败来源、非法报告、重复案例会阻断候选生成。
+- 边界：候选明确声明 `autoPublish: false`、`datasetMutation: false`、`requiresPullRequest: true`，不会自动修改案例库。
+- 验证：本地构建、dataset audit、32 个 JavaScript 测试和 7 个 TypeScript 测试通过；GitHub CI 和生产部署通过。
+
 ## 2026-07-15 · Portable workspace release 39
 
 - Git commit：`019a6f7a3c41ed3183c9e440db2971a2b76e7933`
