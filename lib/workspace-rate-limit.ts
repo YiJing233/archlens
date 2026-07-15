@@ -1,6 +1,9 @@
 import { eq, lt, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { workspaceRateLimitBuckets } from "@/db/schema";
+import { workspaceQuotaLimit } from "@/lib/workspace-quota-policy";
+export { workspaceQuotaLimit } from "@/lib/workspace-quota-policy";
+export type { WorkspaceQuotaAction, WorkspaceQuotaLimits, WorkspaceQuotaRole } from "@/lib/workspace-quota-policy";
 
 const WINDOW_MS = 60_000;
 

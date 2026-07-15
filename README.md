@@ -23,7 +23,7 @@ npm run dev
 - `/api/source-intake`：可选的 D1 来源证据登记与复查接口（公开 Demo 默认关闭写入）
 - `/api/workspaces`：可选的 D1 共享工作区接口（公开 Demo 默认关闭）
 
-共享工作区可选启用成员角色、过期 token 和 D1 quota bucket；来源同步可通过 GitHub Actions 的 `ArchLens Source Intake` 手动或每周触发，输出证据与人工发布候选，不会自动修改案例库。
+共享工作区可选启用成员角色、过期 token 和 D1 quota bucket；quota 按读取、写入、成员管理操作区分，并对 owner/operator 与 editor/viewer 使用不同预算。来源同步可通过 GitHub Actions 的 `ArchLens Source Intake` 手动或每周触发，输出证据与人工发布候选，不会自动修改案例库。
 
 工作区支持从页面导出/导入 `workspace snapshot` JSON，便于通过文件或 GitHub 交接收藏、评分和最近研究任务；快照只在浏览器和用户自己的文件之间流转，不上传到 ArchLens。
 

@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { workspaceAuditEvents, workspaceMembers, workspaceSpaces } from "@/db/schema";
 import { generateWorkspaceToken, hashWorkspaceToken, isWorkspaceRole, workspaceTokenExpiry, type WorkspaceRole } from "@/lib/workspace-auth";
 import { buildWorkspaceInviteUrl } from "@/lib/workspace-invite";
-import { consumeWorkspaceQuota, type WorkspaceQuotaResult } from "@/lib/workspace-rate-limit";
+import { consumeWorkspaceQuota, workspaceQuotaLimit, type WorkspaceQuotaLimits, type WorkspaceQuotaResult } from "@/lib/workspace-rate-limit";
 import { getMcpRuntimeConfig, hasValidWorkspaceAuthorization } from "@/lib/runtime-config";
 
 const jsonHeaders = { "Cache-Control": "no-store" };
@@ -14,9 +14,14 @@ function databaseError(error: unknown) {
   return message;
 }
 
+function quota(config: ReturnType<typeof getMcpRuntimeConfig>, db: Awaited<ReturnType<typeof getDb>>, bucketKey: string) {
+  const limits: WorkspaceQuotaLimits = { read: config.workspaceRateLimitPerMinute, write: config.workspaceWriteRateLimitPerMinute, member: config.workspaceMemberRateLimitPerMinute };
+  return consumeWorkspaceQuota(db, `${bucketKey}:member`, workspaceQuotaLimit("member", "operator", limits));
+}
+
 function quotaResponse(quota: WorkspaceQuotaResult) {
   const retryAfterSeconds = Math.max(1, Math.ceil((quota.resetAt - Date.now()) / 1000));
-  return Response.json({ error: "共享工作区请求过于频繁，请稍后重试", retryAfterSeconds }, { status: 429, headers: { ...jsonHeaders, "Retry-After": String(retryAfterSeconds), "X-RateLimit-Limit": String(quota.limit), "X-RateLimit-Remaining": String(quota.remaining), "X-RateLimit-Reset": String(Math.ceil(quota.resetAt / 1000)) } });
+  return Response.json({ error: "共享工作区请求过于频繁，请稍后重试", retryAfterSeconds, quota: { action: "member", role: "operator", limit: quota.limit } }, { status: 429, headers: { ...jsonHeaders, "Retry-After": String(retryAfterSeconds), "X-RateLimit-Limit": String(quota.limit), "X-RateLimit-Remaining": String(quota.remaining), "X-RateLimit-Reset": String(Math.ceil(quota.resetAt / 1000)), "X-RateLimit-Scope": "member:operator" } });
 }
 
 function disabled(config: ReturnType<typeof getMcpRuntimeConfig>) {
@@ -53,8 +58,8 @@ export async function GET(request: Request) {
   try {
     const spaceId = id(new URL(request.url).searchParams.get("space_id"), "space_id");
     const db = await getDb();
-    const quota = await consumeWorkspaceQuota(db, "members:operator", config.workspaceRateLimitPerMinute);
-    if (!quota.allowed) return quotaResponse(quota);
+    const quotaResult = await quota(config, db, "members:operator");
+    if (!quotaResult.allowed) return quotaResponse(quotaResult);
     const members = await db.select({ memberId: workspaceMembers.memberId, label: workspaceMembers.label, role: workspaceMembers.role, createdAt: workspaceMembers.createdAt, expiresAt: workspaceMembers.expiresAt, revokedAt: workspaceMembers.revokedAt }).from(workspaceMembers).where(eq(workspaceMembers.spaceId, spaceId)).orderBy(desc(workspaceMembers.createdAt));
     const audits = await db.select().from(workspaceAuditEvents).where(eq(workspaceAuditEvents.spaceId, spaceId)).orderBy(desc(workspaceAuditEvents.createdAt)).limit(100);
     return Response.json({ members, auditEvents: audits }, { headers: jsonHeaders });
@@ -80,8 +85,8 @@ export async function POST(request: Request) {
     if (!isWorkspaceRole(input.role) || input.role === "owner") throw new Error("role 只能是 editor 或 viewer");
     const role = input.role as Exclude<WorkspaceRole, "owner">;
     const db = await getDb();
-    const quota = await consumeWorkspaceQuota(db, "members:operator", config.workspaceRateLimitPerMinute);
-    if (!quota.allowed) return quotaResponse(quota);
+    const quotaResult = await quota(config, db, "members:operator");
+    if (!quotaResult.allowed) return quotaResponse(quotaResult);
     if (!(await spaceExists(db, spaceId))) return Response.json({ error: "找不到共享工作区" }, { status: 404, headers: jsonHeaders });
     const token = generateWorkspaceToken();
     const tokenHash = await hashWorkspaceToken(token);
@@ -109,8 +114,8 @@ export async function DELETE(request: Request) {
     const spaceId = id(params.get("space_id"), "space_id");
     const memberId = id(params.get("member_id"), "member_id");
     const db = await getDb();
-    const quota = await consumeWorkspaceQuota(db, "members:operator", config.workspaceRateLimitPerMinute);
-    if (!quota.allowed) return quotaResponse(quota);
+    const quotaResult = await quota(config, db, "members:operator");
+    if (!quotaResult.allowed) return quotaResponse(quotaResult);
     const rows = await db.select().from(workspaceMembers).where(and(eq(workspaceMembers.spaceId, spaceId), eq(workspaceMembers.memberId, memberId))).limit(1);
     if (!rows[0]) return Response.json({ error: "找不到共享工作区成员" }, { status: 404, headers: jsonHeaders });
     if (rows[0].revokedAt) return Response.json({ member: { memberId, revokedAt: rows[0].revokedAt }, alreadyRevoked: true }, { headers: jsonHeaders });
